@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#14121F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="maimai攻略">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<title>maimai攻略ノート</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===================== ホーム ===================== -->
+  <section class="view" id="view-home" data-view="home">
+    <header class="home-header">
+      <p class="home-eyebrow">maimai攻略ノート</p>
+      <h1 class="home-title">今日も一撃で<br>フルコンボを。</h1>
+    </header>
+    <nav class="home-grid">
+      <button class="tile tile--record" data-nav="record">
+        <span class="tile-ring"></span>
+        <span class="tile-label">記録</span>
+        <span class="tile-sub">プレイ結果を残す</span>
+      </button>
+      <button class="tile tile--chart" data-nav="chart">
+        <span class="tile-ring"></span>
+        <span class="tile-label">譜面</span>
+        <span class="tile-sub">配置を確認する</span>
+      </button>
+      <button class="tile tile--routine" data-nav="routine">
+        <span class="tile-ring"></span>
+        <span class="tile-label">日課</span>
+        <span class="tile-sub">練習メニューを組む</span>
+      </button>
+      <button class="tile tile--goal" data-nav="goal">
+        <span class="tile-ring"></span>
+        <span class="tile-label">目標</span>
+        <span class="tile-sub">狙いを言葉にする</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ===================== 記録：曲選択 ===================== -->
+  <section class="view" id="view-record" data-view="record">
+    <header class="page-header">
+      <button class="btn-back" data-nav="home">←</button>
+      <h2>記録</h2>
+      <button class="btn-plain" data-action="manage-songs">曲を編集</button>
+    </header>
+
+    <div class="selector" id="record-selector"></div>
+  </section>
+
+  <!-- ===================== 記録：入力フォーム ===================== -->
+  <section class="view" id="view-record-entry" data-view="record-entry">
+    <header class="page-header">
+      <button class="btn-back" data-nav="record">←</button>
+      <h2 id="record-entry-title">記録を追加</h2>
+      <span></span>
+    </header>
+
+    <form class="form-card" id="record-form">
+      <label class="field">
+        <span class="field-label">日付</span>
+        <input type="date" name="date" required>
+      </label>
+      <label class="field">
+        <span class="field-label">スコア</span>
+        <input type="number" name="score" step="0.0001" placeholder="例）100.5000" required>
+      </label>
+      <label class="field">
+        <span class="field-label">メモ</span>
+        <textarea name="memo" rows="4" placeholder="ミスした場所、指使い、次に試すことなど"></textarea>
+      </label>
+      <button type="submit" class="btn-primary">保存する</button>
+    </form>
+
+    <div class="history" id="record-history"></div>
+  </section>
+
+  <!-- ===================== 譜面：曲選択 ===================== -->
+  <section class="view" id="view-chart" data-view="chart">
+    <header class="page-header">
+      <button class="btn-back" data-nav="home">←</button>
+      <h2>譜面</h2>
+      <button class="btn-plain" data-action="manage-songs">曲を編集</button>
+    </header>
+    <div class="selector" id="chart-selector"></div>
+  </section>
+
+  <!-- ===================== 譜面：ビューア ===================== -->
+  <section class="view" id="view-chart-viewer" data-view="chart-viewer">
+    <header class="page-header">
+      <button class="btn-back" data-nav="chart">←</button>
+      <h2 id="chart-viewer-title">譜面</h2>
+      <button class="btn-plain" data-action="edit-notes">編集</button>
+    </header>
+
+    <div class="ring-wrap">
+      <canvas id="ring-canvas" width="600" height="600"></canvas>
+    </div>
+
+    <div class="transport">
+      <button class="transport-btn" data-action="rewind">⏮</button>
+      <button class="transport-btn transport-btn--main" data-action="play">▶</button>
+      <button class="transport-btn" data-action="metronome">🎵</button>
+      <select class="speed-select" id="speed-select">
+        <option value="0.5">0.5倍</option>
+        <option value="0.75">0.75倍</option>
+        <option value="1" selected>1.0倍</option>
+        <option value="1.25">1.25倍</option>
+        <option value="1.5">1.5倍</option>
+      </select>
+    </div>
+    <div class="scrub-row">
+      <input type="range" id="scrub" min="0" max="100" value="0" step="0.1">
+      <span id="time-label">0.0s</span>
+    </div>
+
+    <p class="hint">ノーツをタップすると色（右手＝青／左手＝緑／既定＝赤）を切り替えられます。</p>
+    <div class="note-list" id="note-list"></div>
+    <button class="btn-secondary" id="add-note-btn">＋ ノーツを追加</button>
+  </section>
+
+  <!-- ===================== 日課：一覧 ===================== -->
+  <section class="view" id="view-routine" data-view="routine">
+    <header class="page-header">
+      <button class="btn-back" data-nav="home">←</button>
+      <h2>日課</h2>
+      <button class="btn-plain" data-nav="routine-entry">＋ 新規</button>
+    </header>
+    <div class="list" id="routine-list"></div>
+    <p class="empty-state" id="routine-empty">まだ日課がありません。右上の「＋ 新規」から作りましょう。</p>
+  </section>
+
+  <!-- ===================== 日課：作成 ===================== -->
+  <section class="view" id="view-routine-entry" data-view="routine-entry">
+    <header class="page-header">
+      <button class="btn-back" data-nav="routine">←</button>
+      <h2>日課を作る</h2>
+      <span></span>
+    </header>
+    <form class="form-card" id="routine-form">
+      <label class="field">
+        <span class="field-label">タイトル（やること）</span>
+        <input type="text" name="title" placeholder="例）EXPERT埋め" required>
+      </label>
+      <label class="field">
+        <span class="field-label">内容</span>
+        <textarea name="content" rows="3" placeholder="具体的な練習内容"></textarea>
+      </label>
+      <div class="field">
+        <span class="field-label">実施する曜日</span>
+        <div class="weekday-picker" id="weekday-picker">
+          <button type="button" class="weekday" data-day="0">日</button>
+          <button type="button" class="weekday" data-day="1">月</button>
+          <button type="button" class="weekday" data-day="2">火</button>
+          <button type="button" class="weekday" data-day="3">水</button>
+          <button type="button" class="weekday" data-day="4">木</button>
+          <button type="button" class="weekday" data-day="5">金</button>
+          <button type="button" class="weekday" data-day="6">土</button>
+        </div>
+      </div>
+      <label class="field">
+        <span class="field-label">開始日</span>
+        <input type="date" name="startDate" required>
+      </label>
+      <label class="field">
+        <span class="field-label">期間（週）</span>
+        <input type="number" name="weeks" min="1" value="4" required>
+      </label>
+      <label class="field">
+        <span class="field-label">時刻（通知用）</span>
+        <input type="time" name="time" value="21:00" required>
+      </label>
+      <button type="submit" class="btn-primary">保存する</button>
+    </form>
+  </section>
+
+  <!-- ===================== 目標 ===================== -->
+  <section class="view" id="view-goal" data-view="goal">
+    <header class="page-header">
+      <button class="btn-back" data-nav="home">←</button>
+      <h2>目標</h2>
+      <span></span>
+    </header>
+
+    <div id="goal-display"></div>
+
+    <form class="form-card" id="goal-form">
+      <label class="field">
+        <span class="field-label">目標タイトル</span>
+        <input type="text" name="title" placeholder="例）15を全曲AJ" required>
+      </label>
+      <label class="field">
+        <span class="field-label">内容</span>
+        <textarea name="content" rows="3" placeholder="達成のための方針など"></textarea>
+      </label>
+      <label class="field">
+        <span class="field-label">期限</span>
+        <input type="date" name="deadline">
+      </label>
+      <button type="submit" class="btn-primary">保存する</button>
+    </form>
+  </section>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
