@@ -1,0 +1,42 @@
+[
+  {
+    "id": "oshama-scramble-master",
+    "title": "Oshama Scramble!",
+    "difficulty": "MASTER",
+    "level": "13",
+    "bpm": 175,
+    "notes": []
+  },
+  {
+    "id": "oshama-scramble-expert",
+    "title": "Oshama Scramble!",
+    "difficulty": "EXPERT",
+    "level": "11",
+    "bpm": 175,
+    "notes": []
+  },
+  {
+    "id": "pandora-paradoxxx-master",
+    "title": "PANDORA PARADOXXX",
+    "difficulty": "MASTER",
+    "level": "13+",
+    "bpm": 200,
+    "notes": []
+  },
+  {
+    "id": "arbazak-master",
+    "title": "ARBAZAK -also known as Grieving Star-",
+    "difficulty": "MASTER",
+    "level": "13+",
+    "bpm": 200,
+    "notes": []
+  },
+  {
+    "id": "excalibur-master",
+    "title": "Excalibur ～Revive the world～",
+    "difficulty": "MASTER",
+    "level": "13",
+    "bpm": 142,
+    "notes": []
+  }
+]

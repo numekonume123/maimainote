@@ -12,20 +12,24 @@ function save(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
 const DIFFICULTIES = ["BASIC", "ADVANCED", "EXPERT", "MASTER", "Re:MASTER"];
 
 /* ============ データ ============ */
-let songs = load("mm_songs", null);
-if (!songs) {
-  songs = [
-    { id: uid(), title: "Oshama Scramble!", difficulty: "MASTER", level: "13", bpm: 175, notes: [] },
-    { id: uid(), title: "Oshama Scramble!", difficulty: "EXPERT", level: "11", bpm: 175, notes: [] },
-    { id: uid(), title: "PANDORA PARADOXXX", difficulty: "MASTER", level: "13+", bpm: 200, notes: [] },
-    { id: uid(), title: "ARBAZAK -also known as Grieving Star-", difficulty: "MASTER", level: "13+", bpm: 200, notes: [] },
-    { id: uid(), title: "Excalibur ～Revive the world～", difficulty: "MASTER", level: "13", bpm: 142, notes: [] },
-  ];
-  save("mm_songs", songs);
-}
+// 曲・譜面データ（songs.json）はPCで編集してGitHubに反映する運用のため、
+// アプリからは読み込み専用で扱う。オフライン用に最後に取得できた内容をキャッシュしておく。
+let songs = load("mm_songs_cache", []);
 let records = load("mm_records", []);
 let routines = load("mm_routines", []);
 let goal = load("mm_goal", null);
+
+async function loadSongs() {
+  try {
+    const res = await fetch("songs.json", { cache: "no-store" });
+    if (!res.ok) throw new Error("failed to fetch songs.json");
+    songs = await res.json();
+    save("mm_songs_cache", songs);
+  } catch (e) {
+    // オフライン時などはキャッシュ済みデータのまま続行
+    console.warn("songs.jsonを取得できなかったため、キャッシュを使用します", e);
+  }
+}
 
 /* ============ ルーター ============ */
 const views = document.querySelectorAll(".view");
@@ -49,7 +53,11 @@ document.addEventListener("click", (e) => {
   if (navBtn) navigate(navBtn.dataset.nav);
 });
 
-navigate("home");
+async function init() {
+  await loadSongs();
+  navigate("home");
+}
+init();
 
 /* ============ 曲選択（記録・譜面 共通） ============ */
 function renderSelector(containerId, mode, onPick) {
@@ -86,7 +94,7 @@ function renderSelector(containerId, mode, onPick) {
     if (q) list = list.filter(s => s.title.toLowerCase().includes(q));
 
     if (list.length === 0) {
-      listEl.innerHTML = `<p class="empty-state">曲が見つかりません。<br>「曲を編集」から追加できます。</p>`;
+      listEl.innerHTML = `<p class="empty-state">曲が見つかりません。<br>songs.jsonに曲を追加してください。</p>`;
       return;
     }
     listEl.innerHTML = "";
@@ -107,23 +115,6 @@ function renderSelector(containerId, mode, onPick) {
 
   searchInput.addEventListener("input", renderList);
   renderList();
-
-  // 曲を編集ボタン（同じページのヘッダー内のものだけを対象にする）
-  const viewEl = el.closest(".view");
-  const manageBtn = viewEl && viewEl.querySelector('[data-action="manage-songs"]');
-  if (manageBtn) manageBtn.onclick = () => manageSongs(mode);
-}
-
-function manageSongs(mode) {
-  const title = prompt("追加する曲名を入力してください（キャンセルで中止）");
-  if (!title) return;
-  const difficulty = prompt(`難易度を入力（${DIFFICULTIES.join(" / ")}）`, "MASTER");
-  if (!difficulty || !DIFFICULTIES.includes(difficulty)) { alert("難易度が正しくありません"); return; }
-  const level = prompt("レベルを入力（例：13+）", "") || "";
-  const bpm = Number(prompt("BPMを入力", "150")) || 150;
-  songs.push({ id: uid(), title, difficulty, level, bpm, notes: [] });
-  save("mm_songs", songs);
-  navigate(mode || "record");
 }
 
 function escapeHtml(s) {
@@ -209,14 +200,10 @@ function renderChartViewer(songId) {
     drawRing();
     updateTimeLabel();
   };
-  document.getElementById("add-note-btn").onclick = addNote;
 
   document.querySelector('[data-action="play"]').onclick = togglePlay;
   document.querySelector('[data-action="rewind"]').onclick = rewind;
   document.querySelector('[data-action="metronome"]').onclick = toggleMetronome;
-  document.querySelector('[data-action="edit-notes"]').onclick = () => {
-    document.getElementById("note-list").scrollIntoView({ behavior: "smooth" });
-  };
 
   updateScrubMax();
   renderNoteList();
@@ -230,18 +217,8 @@ function updateScrubMax() {
   document.getElementById("scrub").max = maxTime;
 }
 
-function addNote() {
-  const time = Number(prompt("ノーツの時間（秒）を入力", chartState.currentTime.toFixed(1)));
-  if (Number.isNaN(time)) return;
-  const button = Number(prompt("ボタン位置（1〜8）を入力", "1"));
-  if (!button || button < 1 || button > 8) { alert("1〜8で入力してください"); return; }
-  chartState.song.notes.push({ id: uid(), time, button, color: "red" });
-  chartState.song.notes.sort((a, b) => a.time - b.time);
-  save("mm_songs", songs);
-  updateScrubMax();
-  renderNoteList();
-  drawRing();
-}
+/* 曲・譜面の追加・編集はsongs.jsonをPCで直接編集し、GitHubへpushして反映する運用のため、
+   アプリ内からの追加・編集UIは設けていない（表示専用）。 */
 
 function cycleColor(c) { return c === "red" ? "blue" : c === "blue" ? "green" : "red"; }
 function colorHex(c) { return c === "blue" ? "#4FA6FF" : c === "green" ? "#46D98A" : "#FF3B5C"; }
@@ -250,35 +227,15 @@ function renderNoteList() {
   const el = document.getElementById("note-list");
   const notes = chartState.song.notes;
   if (notes.length === 0) {
-    el.innerHTML = `<p class="empty-state">まだノーツがありません。「＋ ノーツを追加」から作成できます。</p>`;
+    el.innerHTML = `<p class="empty-state">まだノーツがありません。songs.jsonにnotesを追加してください。</p>`;
     return;
   }
   el.innerHTML = notes.map(n => `
     <div class="note-row" data-id="${n.id}">
-      <span class="note-dot" style="background:${colorHex(n.color)}" data-toggle-color="${n.id}"></span>
+      <span class="note-dot" style="background:${colorHex(n.color)}"></span>
       <span class="note-row-time">${n.time.toFixed(2)}s ・ ボタン${n.button}</span>
-      <button class="note-row-del" data-del-note="${n.id}">×</button>
     </div>
   `).join("");
-
-  el.querySelectorAll("[data-toggle-color]").forEach(dot => {
-    dot.onclick = () => {
-      const n = notes.find(x => x.id === dot.dataset.toggleColor);
-      n.color = cycleColor(n.color);
-      save("mm_songs", songs);
-      renderNoteList();
-      drawRing();
-    };
-  });
-  el.querySelectorAll("[data-del-note]").forEach(btn => {
-    btn.onclick = () => {
-      chartState.song.notes = notes.filter(x => x.id !== btn.dataset.delNote);
-      save("mm_songs", songs);
-      updateScrubMax();
-      renderNoteList();
-      drawRing();
-    };
-  });
 }
 
 function buttonPosition(index, cx, cy, r) {

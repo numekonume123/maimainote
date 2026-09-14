@@ -54,7 +54,7 @@
     <header class="page-header">
       <button class="btn-back" data-nav="home">←</button>
       <h2>記録</h2>
-      <button class="btn-plain" data-action="manage-songs">曲を編集</button>
+      <span></span>
     </header>
 
     <div class="selector" id="record-selector"></div>
@@ -92,7 +92,7 @@
     <header class="page-header">
       <button class="btn-back" data-nav="home">←</button>
       <h2>譜面</h2>
-      <button class="btn-plain" data-action="manage-songs">曲を編集</button>
+      <span></span>
     </header>
     <div class="selector" id="chart-selector"></div>
   </section>
@@ -102,7 +102,7 @@
     <header class="page-header">
       <button class="btn-back" data-nav="chart">←</button>
       <h2 id="chart-viewer-title">譜面</h2>
-      <button class="btn-plain" data-action="edit-notes">編集</button>
+      <span></span>
     </header>
 
     <div class="ring-wrap">
@@ -126,9 +126,8 @@
       <span id="time-label">0.0s</span>
     </div>
 
-    <p class="hint">ノーツをタップすると色（右手＝青／左手＝緑／既定＝赤）を切り替えられます。</p>
+    <p class="hint">ノーツの色は右手＝青／左手＝緑／既定＝赤で表示されます（編集はsongs.jsonをPCで行います）。</p>
     <div class="note-list" id="note-list"></div>
-    <button class="btn-secondary" id="add-note-btn">＋ ノーツを追加</button>
   </section>
 
   <!-- ===================== 日課：一覧 ===================== -->
