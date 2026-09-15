@@ -102,12 +102,14 @@
     <header class="page-header">
       <button class="btn-back" data-nav="chart">←</button>
       <h2 id="chart-viewer-title">譜面</h2>
-      <span></span>
+      <button class="btn-plain" data-action="toggle-edit">編集</button>
     </header>
 
     <div class="ring-wrap">
       <canvas id="ring-canvas" width="600" height="600"></canvas>
     </div>
+
+    <div id="edit-panel" class="edit-panel"></div>
 
     <div class="transport">
       <button class="transport-btn" data-action="rewind">⏮</button>
@@ -126,7 +128,7 @@
       <span id="time-label">0.0s</span>
     </div>
 
-    <p class="hint">ノーツの色は右手＝青／左手＝緑／既定＝赤で表示されます（編集はsongs.jsonをPCで行います）。</p>
+    <p class="hint">「編集」をONにしてリング上をタップすると、その時間にノーツを配置できます。</p>
     <div class="note-list" id="note-list"></div>
   </section>
 
@@ -182,6 +184,44 @@
         <input type="time" name="time" value="21:00" required>
       </label>
       <button type="submit" class="btn-primary">保存する</button>
+    </form>
+  </section>
+
+  <!-- ===================== 曲の新規作成 ===================== -->
+  <section class="view" id="view-song-new" data-view="song-new">
+    <header class="page-header">
+      <button class="btn-back" id="song-new-back">←</button>
+      <h2>新しい曲を作る</h2>
+      <span></span>
+    </header>
+    <form class="form-card" id="song-new-form">
+      <label class="field">
+        <span class="field-label">曲名</span>
+        <input type="text" name="title" placeholder="例）Oshama Scramble!" required>
+      </label>
+      <label class="field">
+        <span class="field-label">難易度</span>
+        <select name="difficulty" required>
+          <option value="BASIC">BASIC</option>
+          <option value="ADVANCED">ADVANCED</option>
+          <option value="EXPERT">EXPERT</option>
+          <option value="MASTER" selected>MASTER</option>
+          <option value="Re:MASTER">Re:MASTER</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="field-label">レベル（例：13+）</span>
+        <input type="text" name="level" placeholder="13+">
+      </label>
+      <label class="field">
+        <span class="field-label">BPM</span>
+        <input type="number" name="bpm" min="1" required>
+      </label>
+      <label class="field">
+        <span class="field-label">曲の長さ（秒）</span>
+        <input type="number" name="duration" min="1" required>
+      </label>
+      <button type="submit" class="btn-primary">作成して譜面編集へ</button>
     </form>
   </section>
 

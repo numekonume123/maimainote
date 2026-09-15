@@ -1,4 +1,4 @@
-const CACHE_NAME = "maimai-note-v2";
+const CACHE_NAME = "maimai-note-v3";
 const ASSETS = [
   "./",
   "./index.html",

@@ -295,6 +295,49 @@ html, body {
 
 .hint { font-size: 12.5px; color: var(--text-dim); text-align: center; margin: 4px 0 14px; }
 
+/* ---------- 譜面編集パネル ---------- */
+.edit-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.edit-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.edit-row-label { font-size: 12.5px; color: var(--text-dim); flex: 0 0 auto; }
+.edit-row input[type=number] {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  width: 90px;
+  text-align: right;
+}
+.seg { display: flex; gap: 6px; }
+.seg-btn {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.seg-btn.active { color: var(--bg); background: var(--pink); border-color: transparent; }
+.seg-btn--color-blue.active { background: var(--note-blue); }
+.seg-btn--color-green.active { background: var(--note-green); }
+.seg-btn--color-red.active { background: var(--note-red); }
+#edit-hint { margin: 0; text-align: left; }
+
+.btn-plain.is-on { color: var(--pink); }
+
 .note-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
 .note-row {
   display: flex;
@@ -306,7 +349,9 @@ html, body {
   font-family: "JetBrains Mono", monospace;
   font-size: 13px;
 }
-.note-dot { width: 14px; height: 14px; border-radius: 50%; flex: 0 0 auto; cursor: pointer; }
+.note-dot { width: 14px; height: 14px; border-radius: 50%; flex: 0 0 auto; }
+.note-dot--touch { border-radius: 3px; transform: rotate(45deg); }
+.note-dot--slide { border-radius: 3px; width: 20px; height: 8px; }
 .note-row-time { flex: 1; color: var(--text-dim); }
 .note-row-del { background: none; border: none; color: var(--text-dim); font-size: 16px; cursor: pointer; }
 

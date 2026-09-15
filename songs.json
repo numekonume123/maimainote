@@ -5,7 +5,8 @@
     "difficulty": "MASTER",
     "level": "13",
     "bpm": 175,
-    "notes": []
+    "notes": [],
+    "duration": 120
   },
   {
     "id": "oshama-scramble-expert",
@@ -13,7 +14,8 @@
     "difficulty": "EXPERT",
     "level": "11",
     "bpm": 175,
-    "notes": []
+    "notes": [],
+    "duration": 120
   },
   {
     "id": "pandora-paradoxxx-master",
@@ -21,7 +23,8 @@
     "difficulty": "MASTER",
     "level": "13+",
     "bpm": 200,
-    "notes": []
+    "notes": [],
+    "duration": 120
   },
   {
     "id": "arbazak-master",
@@ -29,7 +32,8 @@
     "difficulty": "MASTER",
     "level": "13+",
     "bpm": 200,
-    "notes": []
+    "notes": [],
+    "duration": 120
   },
   {
     "id": "excalibur-master",
@@ -37,6 +41,7 @@
     "difficulty": "MASTER",
     "level": "13",
     "bpm": 142,
-    "notes": []
+    "notes": [],
+    "duration": 120
   }
 ]

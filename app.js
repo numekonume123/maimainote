@@ -12,9 +12,14 @@ function save(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
 const DIFFICULTIES = ["BASIC", "ADVANCED", "EXPERT", "MASTER", "Re:MASTER"];
 
 /* ============ データ ============ */
-// 曲・譜面データ（songs.json）はPCで編集してGitHubに反映する運用のため、
-// アプリからは読み込み専用で扱う。オフライン用に最後に取得できた内容をキャッシュしておく。
+// 曲・譜面データ（songs.json）はPCで編集してGitHubに反映する運用がベースだが、
+// アプリ内でも譜面を作れるように、以下2種類の「ローカル編集」をこの端末に保持する。
+//   - songOverrides: songs.json由来の曲に対する上書き（主にnotesの追加編集）
+//   - localSongs   : アプリ内で新規作成した曲（まだsongs.jsonに存在しない）
+// 「書き出す」機能で、この2つをsongs.jsonのベースにマージしたJSONをダウンロードできる。
 let songs = load("mm_songs_cache", []);
+let songOverrides = load("mm_song_overrides", {});
+let localSongs = load("mm_local_songs", []);
 let records = load("mm_records", []);
 let routines = load("mm_routines", []);
 let goal = load("mm_goal", null);
@@ -31,6 +36,53 @@ async function loadSongs() {
   }
 }
 
+function getWorkingSongs() {
+  const base = songs.map(s => songOverrides[s.id] ? Object.assign({}, s, songOverrides[s.id]) : s);
+  return base.concat(localSongs);
+}
+
+function findWorkingSong(id) {
+  return getWorkingSongs().find(s => s.id === id);
+}
+
+// 曲の編集（notesなど）を保存する。songs.json由来の曲ならoverrideとして、
+// アプリ内で新規作成した曲ならlocalSongs自体を更新する。
+function persistSongEdit(song) {
+  const isLocal = localSongs.some(s => s.id === song.id);
+  if (isLocal) {
+    localSongs = localSongs.map(s => s.id === song.id ? song : s);
+    save("mm_local_songs", localSongs);
+  } else {
+    songOverrides[song.id] = { notes: song.notes };
+    save("mm_song_overrides", songOverrides);
+  }
+}
+
+function slugify(title, difficulty) {
+  const base = title.toLowerCase()
+    .replace(/[^a-z0-9\u3040-\u30ff\u4e00-\u9faf]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "song";
+  const diffSlug = difficulty.toLowerCase().replace(/[^a-z]+/g, "");
+  let id = `${base}-${diffSlug}`;
+  const existing = new Set(getWorkingSongs().map(s => s.id));
+  if (existing.has(id)) id += "-" + uid().slice(-4);
+  return id;
+}
+
+function exportSongsJson() {
+  const merged = getWorkingSongs();
+  const text = JSON.stringify(merged, null, 2);
+  const blob = new Blob([text], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "songs.json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
 /* ============ ルーター ============ */
 const views = document.querySelectorAll(".view");
 let currentParams = {};
@@ -43,6 +95,7 @@ function navigate(name, params = {}) {
   if (name === "record-entry") renderRecordEntry(params.songId);
   if (name === "chart") renderSelector("chart-selector", "chart", onPickChartSong);
   if (name === "chart-viewer") renderChartViewer(params.songId);
+  if (name === "song-new") resetSongNewForm(params.from || "chart");
   if (name === "routine") renderRoutineList();
   if (name === "routine-entry") resetRoutineForm();
   if (name === "goal") renderGoal();
@@ -66,6 +119,8 @@ function renderSelector(containerId, mode, onPick) {
     <input class="selector-search" type="text" placeholder="曲名で検索" id="${containerId}-search">
     <div class="diff-tabs" id="${containerId}-tabs"></div>
     <div id="${containerId}-list"></div>
+    <button class="btn-secondary" id="${containerId}-new">＋ 新しい曲を作る</button>
+    ${mode === "chart" ? `<button class="btn-secondary" id="${containerId}-export">songs.jsonを書き出す</button>` : ""}
   `;
 
   const searchInput = el.querySelector(`#${containerId}-search`);
@@ -89,12 +144,12 @@ function renderSelector(containerId, mode, onPick) {
   function renderList() {
     [...tabsEl.children].forEach(b => b.classList.toggle("active", b.dataset.diff === activeDiff));
     const q = searchInput.value.trim().toLowerCase();
-    let list = songs;
+    let list = getWorkingSongs();
     if (activeDiff) list = list.filter(s => s.difficulty === activeDiff);
     if (q) list = list.filter(s => s.title.toLowerCase().includes(q));
 
     if (list.length === 0) {
-      listEl.innerHTML = `<p class="empty-state">曲が見つかりません。<br>songs.jsonに曲を追加してください。</p>`;
+      listEl.innerHTML = `<p class="empty-state">曲が見つかりません。<br>「＋ 新しい曲を作る」から追加できます。</p>`;
       return;
     }
     listEl.innerHTML = "";
@@ -115,6 +170,10 @@ function renderSelector(containerId, mode, onPick) {
 
   searchInput.addEventListener("input", renderList);
   renderList();
+
+  el.querySelector(`#${containerId}-new`).onclick = () => navigate("song-new", { from: mode });
+  const exportBtn = el.querySelector(`#${containerId}-export`);
+  if (exportBtn) exportBtn.onclick = exportSongsJson;
 }
 
 function escapeHtml(s) {
@@ -125,7 +184,7 @@ function escapeHtml(s) {
 function onPickRecordSong(song) { navigate("record-entry", { songId: song.id }); }
 
 function renderRecordEntry(songId) {
-  const song = songs.find(s => s.id === songId);
+  const song = findWorkingSong(songId);
   document.getElementById("record-entry-title").textContent = song ? `${song.title}（${song.difficulty}）` : "記録";
 
   const form = document.getElementById("record-form");
@@ -170,14 +229,26 @@ function renderHistory(songId) {
 }
 
 /* ============ 譜面 ============ */
-let chartState = null; // { song, notes, playing, currentTime, rafId, speed, metronomeOn, metroTimer, audioCtx }
+let chartState = null; // { song, notes, playing, currentTime, speed, metronomeOn, audioCtx, editing, noteType, noteColor, pendingSlide }
+
+const NOTE_TYPES = [
+  { id: "tap", label: "タップ" },
+  { id: "touch", label: "タッチ" },
+  { id: "slide", label: "スライド" },
+];
+const NOTE_COLORS = [
+  { id: "red", label: "既定" },
+  { id: "blue", label: "右手" },
+  { id: "green", label: "左手" },
+];
 
 function onPickChartSong(song) { navigate("chart-viewer", { songId: song.id }); }
 
 function renderChartViewer(songId) {
   stopChartPlayback();
-  const song = songs.find(s => s.id === songId);
+  const song = findWorkingSong(songId);
   if (!song) return;
+  if (!song.notes) song.notes = [];
   document.getElementById("chart-viewer-title").textContent = `${song.title}（${song.difficulty}）`;
 
   chartState = {
@@ -189,6 +260,11 @@ function renderChartViewer(songId) {
     audioCtx: null,
     lastFrame: null,
     metroNextTime: 0,
+    editing: false,
+    noteType: "tap",
+    noteColor: "red",
+    slideDuration: song.bpm ? Math.round((60 / song.bpm) * 100) / 100 : 0.5,
+    pendingSlide: null, // { from, time }
   };
 
   document.getElementById("speed-select").value = "1";
@@ -197,6 +273,7 @@ function renderChartViewer(songId) {
   };
   document.getElementById("scrub").oninput = (e) => {
     chartState.currentTime = Number(e.target.value);
+    chartState.pendingSlide = null;
     drawRing();
     updateTimeLabel();
   };
@@ -205,43 +282,213 @@ function renderChartViewer(songId) {
   document.querySelector('[data-action="rewind"]').onclick = rewind;
   document.querySelector('[data-action="metronome"]').onclick = toggleMetronome;
 
+  const editToggle = document.querySelector('[data-action="toggle-edit"]');
+  editToggle.classList.remove("is-on");
+  editToggle.onclick = () => {
+    chartState.editing = !chartState.editing;
+    chartState.pendingSlide = null;
+    editToggle.classList.toggle("is-on", chartState.editing);
+    document.getElementById("edit-panel").style.display = chartState.editing ? "block" : "none";
+    renderNoteList();
+    drawRing();
+  };
+  document.getElementById("edit-panel").style.display = "none";
+  renderEditPanel();
+
+  const canvas = document.getElementById("ring-canvas");
+  canvas.onclick = (e) => {
+    if (!chartState.editing) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+    handleCanvasEditTap(x, y);
+  };
+
   updateScrubMax();
   renderNoteList();
   drawRing();
   updateTimeLabel();
 }
 
+function renderEditPanel() {
+  const panel = document.getElementById("edit-panel");
+  panel.innerHTML = `
+    <div class="edit-row">
+      <span class="edit-row-label">種類</span>
+      <div class="seg" id="edit-type-seg">
+        ${NOTE_TYPES.map(t => `<button type="button" class="seg-btn" data-type="${t.id}">${t.label}</button>`).join("")}
+      </div>
+    </div>
+    <div class="edit-row" id="edit-color-row">
+      <span class="edit-row-label">色（手）</span>
+      <div class="seg" id="edit-color-seg">
+        ${NOTE_COLORS.map(c => `<button type="button" class="seg-btn seg-btn--color-${c.id}" data-color="${c.id}">${c.label}</button>`).join("")}
+      </div>
+    </div>
+    <div class="edit-row" id="edit-slide-row">
+      <span class="edit-row-label">スライドの長さ(秒)</span>
+      <input type="number" id="edit-slide-duration" step="0.05" min="0.05" value="${chartState.slideDuration}">
+    </div>
+    <p class="hint" id="edit-hint"></p>
+  `;
+
+  const typeSeg = document.getElementById("edit-type-seg");
+  typeSeg.querySelectorAll("[data-type]").forEach(b => {
+    b.classList.toggle("active", b.dataset.type === chartState.noteType);
+    b.onclick = () => {
+      chartState.noteType = b.dataset.type;
+      chartState.pendingSlide = null;
+      renderEditPanel();
+      drawRing();
+    };
+  });
+  const colorSeg = document.getElementById("edit-color-seg");
+  colorSeg.querySelectorAll("[data-color]").forEach(b => {
+    b.classList.toggle("active", b.dataset.color === chartState.noteColor);
+    b.onclick = () => {
+      chartState.noteColor = b.dataset.color;
+      renderEditPanel();
+    };
+  });
+  document.getElementById("edit-color-row").style.display = chartState.noteType === "slide" ? "none" : "flex";
+  document.getElementById("edit-slide-row").style.display = chartState.noteType === "slide" ? "flex" : "none";
+  document.getElementById("edit-slide-duration").oninput = (e) => {
+    chartState.slideDuration = Number(e.target.value) || 0.1;
+  };
+
+  const hint = document.getElementById("edit-hint");
+  if (chartState.noteType === "slide") {
+    hint.textContent = chartState.pendingSlide
+      ? "終点のボタンをタップしてください。"
+      : "始点のボタンをタップしてください。";
+  } else {
+    hint.textContent = "リング上のボタンをタップすると、現在の時間にノーツを配置します。";
+  }
+}
+
 function updateScrubMax() {
   const notes = chartState.song.notes;
-  const maxTime = notes.length ? Math.max(...notes.map(n => n.time)) + 2 : 10;
+  const noteEnd = notes.length ? Math.max(...notes.map(n => n.time + (n.duration || 0))) + 2 : 0;
+  const maxTime = Math.max(chartState.song.duration || 0, noteEnd, 10);
   document.getElementById("scrub").max = maxTime;
 }
 
-/* 曲・譜面の追加・編集はsongs.jsonをPCで直接編集し、GitHubへpushして反映する運用のため、
-   アプリ内からの追加・編集UIは設けていない（表示専用）。 */
-
 function cycleColor(c) { return c === "red" ? "blue" : c === "blue" ? "green" : "red"; }
 function colorHex(c) { return c === "blue" ? "#4FA6FF" : c === "green" ? "#46D98A" : "#FF3B5C"; }
+const TYPE_LABEL = { tap: "タップ", touch: "タッチ", slide: "スライド" };
+
+function handleCanvasEditTap(x, y) {
+  const canvas = document.getElementById("ring-canvas");
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2, r = W * 0.36;
+  const hitRadius = W * 0.08;
+
+  // center touch判定
+  const distCenter = Math.hypot(x - cx, y - cy);
+  let button = null;
+  if (chartState.noteType === "touch" && distCenter < W * 0.14) {
+    button = 0; // 0 = 中心
+  } else {
+    for (let i = 1; i <= 8; i++) {
+      const p = buttonPosition(i, cx, cy, r);
+      if (Math.hypot(x - p.x, y - p.y) < hitRadius) { button = i; break; }
+    }
+  }
+  if (button === null) return;
+
+  if (chartState.noteType === "slide") {
+    if (!chartState.pendingSlide) {
+      if (button === 0) return; // スライドは中心不可
+      chartState.pendingSlide = { from: button, time: chartState.currentTime };
+      renderEditPanel();
+      drawRing();
+      return;
+    }
+    if (button === 0 || button === chartState.pendingSlide.from) { chartState.pendingSlide = null; renderEditPanel(); drawRing(); return; }
+    const note = {
+      id: uid(),
+      type: "slide",
+      time: chartState.pendingSlide.time,
+      from: chartState.pendingSlide.from,
+      to: button,
+      duration: chartState.slideDuration,
+      color: chartState.noteColor,
+    };
+    chartState.song.notes.push(note);
+    chartState.song.notes.sort((a, b) => a.time - b.time);
+    persistSongEdit(chartState.song);
+    chartState.pendingSlide = null;
+    updateScrubMax();
+    renderNoteList();
+    renderEditPanel();
+    drawRing();
+    return;
+  }
+
+  const note = {
+    id: uid(),
+    type: chartState.noteType,
+    time: chartState.currentTime,
+    button,
+    color: chartState.noteColor,
+  };
+  chartState.song.notes.push(note);
+  chartState.song.notes.sort((a, b) => a.time - b.time);
+  persistSongEdit(chartState.song);
+  updateScrubMax();
+  renderNoteList();
+  drawRing();
+}
+
+function deleteNote(noteId) {
+  chartState.song.notes = chartState.song.notes.filter(n => n.id !== noteId);
+  persistSongEdit(chartState.song);
+  updateScrubMax();
+  renderNoteList();
+  drawRing();
+}
 
 function renderNoteList() {
   const el = document.getElementById("note-list");
   const notes = chartState.song.notes;
   if (notes.length === 0) {
-    el.innerHTML = `<p class="empty-state">まだノーツがありません。songs.jsonにnotesを追加してください。</p>`;
+    el.innerHTML = `<p class="empty-state">まだノーツがありません。${chartState.editing ? "リング上をタップして配置しましょう。" : "「編集」から追加できます。"}</p>`;
     return;
   }
-  el.innerHTML = notes.map(n => `
+  el.innerHTML = notes.map(n => {
+    const posLabel = n.type === "slide" ? `${n.from}→${n.to}` : (n.button === 0 ? "中心" : `ボタン${n.button}`);
+    return `
     <div class="note-row" data-id="${n.id}">
-      <span class="note-dot" style="background:${colorHex(n.color)}"></span>
-      <span class="note-row-time">${n.time.toFixed(2)}s ・ ボタン${n.button}</span>
+      <span class="note-dot note-dot--${n.type}" style="background:${colorHex(n.color)}"></span>
+      <span class="note-row-time">${n.time.toFixed(2)}s ・ ${TYPE_LABEL[n.type] || "タップ"} ・ ${posLabel}</span>
+      ${chartState.editing ? `<button class="note-row-del" data-del-note="${n.id}">×</button>` : ""}
     </div>
-  `).join("");
+  `;
+  }).join("");
+
+  if (chartState.editing) {
+    el.querySelectorAll("[data-del-note]").forEach(btn => {
+      btn.onclick = () => deleteNote(btn.dataset.delNote);
+    });
+  }
 }
 
 function buttonPosition(index, cx, cy, r) {
-  // index 1-8, 上(12時)から時計回り
+  // index 1-8, 上(12時)から時計回り。0は中心（タッチ用）
+  if (index === 0) return { x: cx, y: cy };
   const angle = -Math.PI / 2 + (index - 1) * (2 * Math.PI / 8);
   return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+}
+
+function drawDiamond(ctx, x, y, size) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - size);
+  ctx.lineTo(x + size, y);
+  ctx.lineTo(x, y + size);
+  ctx.lineTo(x - size, y);
+  ctx.closePath();
 }
 
 function drawRing() {
@@ -269,16 +516,75 @@ function drawRing() {
     ctx.stroke();
   }
 
-  // ノーツ：接近アニメーション（中心→ボタン）
-  const travel = 1.2; // 秒
+  // スライド編集中：始点のハイライト
+  if (chartState.editing && chartState.pendingSlide) {
+    const p = buttonPosition(chartState.pendingSlide.from, cx, cy, r);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, btnR * 1.4, 0, Math.PI * 2);
+    ctx.strokeStyle = "#FFC93C";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
+  const travel = 1.2; // 秒（登場〜判定のリードタイム）
+
   chartState.song.notes.forEach(n => {
+    if (n.type === "slide") {
+      const dt = n.time - chartState.currentTime;
+      const activeEnd = n.duration || 0.3;
+      if (dt > travel || dt < -activeEnd - 0.15) return;
+      const from = buttonPosition(n.from, cx, cy, r);
+      const to = buttonPosition(n.to, cx, cy, r);
+
+      // ガイドライン
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.strokeStyle = colorHex(n.color);
+      ctx.globalAlpha = 0.35;
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      if (dt > 0) {
+        // まだ始点に到達していない：始点を光らせる
+        ctx.beginPath();
+        ctx.arc(from.x, from.y, btnR * 0.8, 0, Math.PI * 2);
+        ctx.fillStyle = colorHex(n.color);
+        ctx.fill();
+      } else {
+        // 始点〜終点を移動中のスターマーカー
+        const progress = Math.min(1, -dt / activeEnd);
+        const x = from.x + (to.x - from.x) * progress;
+        const y = from.y + (to.y - from.y) * progress;
+        ctx.beginPath();
+        ctx.arc(x, y, btnR * 0.8, 0, Math.PI * 2);
+        ctx.fillStyle = colorHex(n.color);
+        ctx.fill();
+      }
+      return;
+    }
+
     const dt = n.time - chartState.currentTime;
     if (dt < -0.15 || dt > travel) return;
     const progress = Math.min(1, Math.max(0, 1 - dt / travel));
+    const hit = dt <= 0.15 && dt >= -0.15;
     const p = buttonPosition(n.button, cx, cy, r);
+
+    if (n.type === "touch") {
+      // タッチノーツはその場でフェードイン（中心から飛んでは来ない）
+      ctx.save();
+      ctx.globalAlpha = hit ? 1 : 0.35 + progress * 0.5;
+      drawDiamond(ctx, p.x, p.y, hit ? btnR * 1.1 : btnR * 0.8);
+      ctx.fillStyle = colorHex(n.color);
+      ctx.fill();
+      ctx.restore();
+      return;
+    }
+
+    // タップノーツ：中心→ボタンへ接近
     const x = cx + (p.x - cx) * progress;
     const y = cy + (p.y - cy) * progress;
-    const hit = dt <= 0.15 && dt >= -0.15;
     ctx.beginPath();
     ctx.arc(x, y, hit ? btnR * 1.15 : btnR * 0.55, 0, Math.PI * 2);
     ctx.fillStyle = colorHex(n.color);
@@ -287,12 +593,12 @@ function drawRing() {
     ctx.globalAlpha = 1;
   });
 
-  // 中心
+  // 中心（タッチ判定エリアの目安を兼ねる）
   ctx.beginPath();
   ctx.arc(cx, cy, W * 0.1, 0, Math.PI * 2);
   ctx.fillStyle = "#1B1830";
   ctx.fill();
-  ctx.strokeStyle = "#332C55";
+  ctx.strokeStyle = chartState.editing && chartState.noteType === "touch" ? "#FF3B5C" : "#332C55";
   ctx.lineWidth = 2;
   ctx.stroke();
 }
@@ -534,6 +840,36 @@ function renderGoal() {
     };
     save("mm_goal", goal);
     renderGoal();
+  };
+}
+
+/* ============ 曲の新規作成 ============ */
+function resetSongNewForm(fromMode) {
+  const form = document.getElementById("song-new-form");
+  form.reset();
+  form.querySelector('[name="bpm"]').value = "150";
+  form.querySelector('[name="duration"]').value = "120";
+
+  document.getElementById("song-new-back").onclick = () => navigate(fromMode || "chart");
+
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const title = fd.get("title").trim();
+    const difficulty = fd.get("difficulty");
+    if (!title) return;
+    const song = {
+      id: slugify(title, difficulty),
+      title,
+      difficulty,
+      level: fd.get("level") || "",
+      bpm: Number(fd.get("bpm")) || 150,
+      duration: Number(fd.get("duration")) || 120,
+      notes: [],
+    };
+    localSongs.push(song);
+    save("mm_local_songs", localSongs);
+    navigate("chart-viewer", { songId: song.id });
   };
 }
 
